@@ -135,38 +135,18 @@ final class AppModel {
     }
 
     private func report(_ result: LaunchResult, for project: Project) {
+        guard let problem = LaunchProblem(result, projectName: project.name) else { return }
         let alert = NSAlert()
-        switch result {
-        case .opened, .focused:
-            return
-        case .missingFolders(let folders):
-            alert.messageText = "No se abrió «\(project.name)»"
-            alert.informativeText = PanelViewModel.missingMessage(folders) + ". Corrige la ruta en proyectos.yaml."
-            alert.addButton(withTitle: "Abrir en Zed")
-            alert.addButton(withTitle: "Cerrar")
-        case .permissionDenied:
-            alert.messageText = "Lanzadera no tiene permiso para controlar Ghostty"
-            alert.informativeText = "Actívalo en Ajustes → Privacidad y seguridad → Automatización → Lanzadera → Ghostty."
-            alert.addButton(withTitle: "Abrir Ajustes")
-            alert.addButton(withTitle: "Cerrar")
-        case .ghosttyMissing:
-            alert.messageText = "Ghostty no está instalado"
-            alert.informativeText = "Lanzadera abre los proyectos en Ghostty. Descárgalo de ghostty.org e instálalo en Aplicaciones."
-            alert.addButton(withTitle: "Abrir ghostty.org")
-            alert.addButton(withTitle: "Cerrar")
-        case .failed(let message):
-            alert.messageText = "No se pudo abrir «\(project.name)» en Ghostty"
-            alert.informativeText = message
-            alert.addButton(withTitle: "Cerrar")
-        }
+        alert.messageText = problem.title
+        alert.informativeText = problem.message
+        if let action = problem.action { alert.addButton(withTitle: action.title) }
+        alert.addButton(withTitle: "Cerrar")
         NSApp.activate()
-        let response = alert.runModal()
-        guard response == .alertFirstButtonReturn else { return }
-        switch result {
-        case .missingFolders: Editor.open(store.file)
-        case .permissionDenied: AutomationPermission.openSettings()
-        case .ghosttyMissing: if let url = URL(string: "https://ghostty.org") { NSWorkspace.shared.open(url) }
-        default: break
+        guard alert.runModal() == .alertFirstButtonReturn, let action = problem.action else { return }
+        switch action {
+        case .editConfig: Editor.open(store.file)
+        case .openAutomationSettings: AutomationPermission.openSettings()
+        case .downloadGhostty: NSWorkspace.shared.open(LaunchProblem.ghosttyWebsite)
         }
     }
 }

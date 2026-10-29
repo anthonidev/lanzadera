@@ -173,3 +173,17 @@ struct ProjectLauncherTests {
         #expect(registry.entries.isEmpty)
     }
 }
+
+struct LaunchProblemTests {
+    @Test func `abrir bien no es un problema y cada fallo ofrece su acción`() {
+        #expect(LaunchProblem(.opened, projectName: "X") == nil)
+        #expect(LaunchProblem(.focused, projectName: "X") == nil)
+        #expect(LaunchProblem(.permissionDenied, projectName: "X")?.action == .openAutomationSettings)
+        #expect(LaunchProblem(.ghosttyMissing, projectName: "X")?.action == .downloadGhostty)
+        #expect(LaunchProblem(.missingFolders(["/a"]), projectName: "X")?.action == .editConfig)
+        let failed = LaunchProblem(.failed("boom"), projectName: "Nexus")
+        #expect(failed?.title == "No se pudo abrir «Nexus» en Ghostty")
+        #expect(failed?.message == "boom")
+        #expect(failed?.action == nil)
+    }
+}
