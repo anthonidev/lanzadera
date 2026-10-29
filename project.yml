@@ -1,0 +1,53 @@
+name: Lanzadera
+options:
+  bundleIdPrefix: dev.tonis
+  deploymentTarget:
+    macOS: "27.0"
+  createIntermediateGroups: true
+  developmentLanguage: es
+packages:
+  LanzaderaKit:
+    path: Packages/LanzaderaKit
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    DEVELOPMENT_TEAM: RS79YL6DLM
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "Apple Development"
+    ENABLE_HARDENED_RUNTIME: YES
+    SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+    SWIFT_UPCOMING_FEATURE_EXISTENTIAL_ANY: YES
+    DEAD_CODE_STRIPPING: YES
+targets:
+  Lanzadera:
+    type: application
+    platform: macOS
+    sources:
+      - App/Sources
+      - App/Resources
+    dependencies:
+      - package: LanzaderaKit
+        products: [LanzaderaCore, LanzaderaConfig, LanzaderaSystem, LanzaderaUI]
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleName: Lanzadera
+        CFBundleDisplayName: Lanzadera
+        CFBundleShortVersionString: "0.1.0"
+        CFBundleVersion: "1"
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.developer-tools
+        NSHumanReadableCopyright: "Uso personal"
+        NSAppleEventsUsageDescription: "Lanzadera abre tus proyectos en Ghostty: crea sus ventanas, pestañas y paneles, y te lleva a las que ya están abiertas."
+    entitlements:
+      path: App/Lanzadera.entitlements
+      properties:
+        com.apple.security.automation.apple-events: true
+    settings:
+      base:
+        PRODUCT_NAME: Lanzadera
+        PRODUCT_BUNDLE_IDENTIFIER: dev.tonis.lanzadera
+        ENABLE_APP_SANDBOX: NO
+        GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
