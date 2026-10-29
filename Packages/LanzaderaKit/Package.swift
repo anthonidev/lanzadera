@@ -50,6 +50,7 @@ let package = Package(
             resources: [.copy("Fixtures")],
             swiftSettings: strictConcurrency
         ),
+        .testTarget(name: "LanzaderaSystemTests", dependencies: ["LanzaderaSystem"], swiftSettings: mainActorByDefault),
         .testTarget(name: "LanzaderaUITests", dependencies: ["LanzaderaUI"], swiftSettings: mainActorByDefault),
     ]
 )

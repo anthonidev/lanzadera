@@ -21,7 +21,7 @@ test:  ## Pruebas del paquete LanzaderaKit
 	cd Packages/LanzaderaKit && swift test
 
 lint:  ## SwiftLint sobre todo el código
-	swiftlint lint --quiet
+	swiftlint lint --quiet --strict
 
 format:  ## Formatea con swift-format (incluido en Xcode)
 	xcrun swift-format format --in-place --recursive App/Sources Packages/LanzaderaKit/Sources Packages/LanzaderaKit/Tests

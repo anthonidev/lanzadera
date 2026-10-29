@@ -232,7 +232,8 @@ struct ConfigReplaceTests {
 
     @Test func `si no existe lo agrega y con el YAML roto no toca nada`() throws {
         let other = ProjectSpec(name: "Z", root: "~/z", windows: [WindowSpec(tabs: [TabSpec(title: "Z")])])
-        #expect(try ConfigLoader.load(ConfigWriter.replacing("Z", with: other, in: text), resolver: resolver).map(\.name) == ["A", "Nexus", "C", "Z"])
+        let appended = try ConfigWriter.replacing("Z", with: other, in: text)
+        #expect(try ConfigLoader.load(appended, resolver: resolver).map(\.name) == ["A", "Nexus", "C", "Z"])
         #expect(throws: ConfigSyntaxError.self) { try ConfigWriter.replacing("A", with: other, in: "projects:\n  - name: [roto\n") }
     }
 }
