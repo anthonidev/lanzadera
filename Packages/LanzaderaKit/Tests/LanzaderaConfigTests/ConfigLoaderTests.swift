@@ -160,3 +160,27 @@ struct ConfigWriterTests {
         #expect(ConfigWriter.scalar(#""x""#) == #""\"x\"""#)
     }
 }
+
+struct YAMLErrorTranslationTests {
+    func message(for text: String) -> String? {
+        do {
+            _ = try ConfigLoader.specs(from: text)
+            return nil
+        } catch {
+            return error.message
+        }
+    }
+
+    @Test func `los errores comunes se explican en español`() {
+        #expect(message(for: "projects:\n  - name: A: B\n")?.contains("«:» de más") == true)
+        #expect(message(for: "projects:\n  - name: \"A\n    root: x\n")?.contains("comillas sin cerrar") == true)
+        #expect(message(for: "projects:\n  - name: [roto\n")?.contains("«[»") == true)
+        #expect(message(for: "projects:\n  - name: A\n   tabs: x\n") == YAMLErrorTranslator.indentation)
+        #expect(message(for: "projects:\n\t- name: A\n") == YAMLErrorTranslator.tab)
+        #expect(message(for: "projects:\n  - name: *nada\n")?.contains("alias") == true)
+    }
+
+    @Test func `un problema desconocido se deja tal cual`() {
+        #expect(YAMLErrorTranslator.translate("something new", line: "x") == "something new")
+    }
+}

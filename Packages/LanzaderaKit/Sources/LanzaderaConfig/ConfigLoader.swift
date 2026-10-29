@@ -31,7 +31,7 @@ public enum ConfigLoader {
         do {
             root = try Yams.compose(yaml: text)
         } catch let error as YamlError {
-            throw syntaxError(from: error)
+            throw syntaxError(from: error, text: text)
         } catch {
             throw ConfigSyntaxError(String(describing: error))
         }
@@ -161,12 +161,14 @@ public enum ConfigLoader {
         node.null != nil
     }
 
-    private static func syntaxError(from error: YamlError) -> ConfigSyntaxError {
+    private static func syntaxError(from error: YamlError, text: String) -> ConfigSyntaxError {
         switch error {
-        case .scanner(let context, let problem, let mark, _),
-             .parser(let context, let problem, let mark, _),
-             .composer(let context, let problem, let mark, _):
-            let message = [problem, context.map { "(\($0.text))" }].compactMap(\.self).joined(separator: " ")
+        case .scanner(_, let problem, let mark, _),
+             .parser(_, let problem, let mark, _),
+             .composer(_, let problem, let mark, _):
+            let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+            let line = lines.indices.contains(mark.line - 1) ? String(lines[mark.line - 1]) : nil
+            let message = YAMLErrorTranslator.translate(problem, line: line)
             return ConfigSyntaxError(message, line: mark.line, column: mark.column)
         default:
             return ConfigSyntaxError(error.description)
