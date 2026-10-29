@@ -24,6 +24,8 @@ public final class PanelViewModel {
     public var notice: String?
     /// ⌥ apretado: Enter o clic abren ventanas nuevas.
     public var isOptionHeld = false
+    /// Hay un proyecto abriéndose en Ghostty.
+    public private(set) var isLaunching = false
     /// Cambia en cada apertura: la vista enfoca la búsqueda y anima la entrada de las filas.
     public private(set) var presentationID = 0
 
@@ -100,16 +102,17 @@ public final class PanelViewModel {
     }
 
     /// ⌘1…⌘9: abre directo el proyecto en esa posición de la lista.
-    public func open(position: Int, forceNew: Bool) {
+    @discardableResult
+    public func open(position: Int, forceNew: Bool) -> Task<Void, Never>? {
         let items = items
-        guard items.indices.contains(position - 1) else { return }
+        guard items.indices.contains(position - 1) else { return nil }
         selection = position - 1
-        open(items[position - 1], forceNew: forceNew)
+        return open(items[position - 1], forceNew: forceNew)
     }
 
-    /// Consulta a Ghostty qué está abierto. Se llama justo después de mostrar el panel para no demorarlo.
-    public func refreshOpenStates() {
-        openNames = launcher.openProjects(among: store.projects)
+    /// Consulta a Ghostty qué está abierto, fuera del hilo principal.
+    public func refreshOpenStates() async {
+        openNames = await launcher.openProjects(among: store.projects)
     }
 
     public func refreshFolders() {
@@ -127,30 +130,39 @@ public final class PanelViewModel {
         selection = min(max(selection + delta, 0), count - 1)
     }
 
-    public func openSelected(forceNew: Bool) {
-        guard let entry = selectedEntry else { return }
-        open(entry, forceNew: forceNew)
+    @discardableResult
+    public func openSelected(forceNew: Bool) -> Task<Void, Never>? {
+        guard let entry = selectedEntry else { return nil }
+        return open(entry, forceNew: forceNew)
     }
 
-    public func open(_ entry: ProjectEntry, forceNew: Bool) {
+    /// Cierra el panel y abre el proyecto en segundo plano. Devuelve la tarea para poder esperarla en pruebas.
+    /// Mientras un proyecto se está abriendo, otro Enter o clic no hace nada (evita ventanas duplicadas).
+    @discardableResult
+    public func open(_ entry: ProjectEntry, forceNew: Bool) -> Task<Void, Never>? {
         guard let project = entry.project else {
             notice = "«\(entry.name)» tiene errores en el archivo: corrígelos con ⚙️ Configurar."
-            return
+            return nil
         }
         let missing = launcher.missingFolders(of: project)
         guard missing.isEmpty else {
             notice = Self.missingMessage(missing)
             missingFolders[project.name] = missing
-            return
+            return nil
         }
+        guard !isLaunching else { return nil }
+        isLaunching = true
         // Primero se cierra el panel: Ghostty debe quedar al frente.
         onClose()
-        let result = launcher.launch(project, forceNew: forceNew)
-        switch result {
-        case .opened, .focused:
-            openNames.insert(project.name)
-        case .missingFolders, .permissionDenied, .failed:
-            onLaunchProblem(result, project)
+        return Task {
+            let result = await launcher.launch(project, forceNew: forceNew)
+            isLaunching = false
+            switch result {
+            case .opened, .focused:
+                openNames.insert(project.name)
+            case .missingFolders, .permissionDenied, .ghosttyMissing, .failed:
+                onLaunchProblem(result, project)
+            }
         }
     }
 

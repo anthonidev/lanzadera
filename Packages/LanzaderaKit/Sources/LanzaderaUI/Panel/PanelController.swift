@@ -53,20 +53,15 @@ public final class PanelController {
         panel.alphaValue = 0
         panel.makeKeyAndOrderFront(nil)
 
-        let id = transitionID
         NSAnimationContext.runAnimationGroup { context in
             context.duration = reduceMotion ? 0.12 : 0.24
             // Sale rápido y frena suave, como un resorte sin rebote.
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1, 0.3, 1)
             panel.animator().setFrame(target, display: true)
             panel.animator().alphaValue = 1
-        } completionHandler: { [weak self] in
-            // La consulta a Ghostty bloquea el hilo principal ~40 ms: después de la animación, no durante.
-            MainActor.assumeIsolated {
-                guard let self, self.transitionID == id, !self.isHiding else { return }
-                self.model.refreshOpenStates()
-            }
         }
+        // La consulta corre fuera del hilo principal: puede empezar ya, sin trabar la animación.
+        Task { [model] in await model.refreshOpenStates() }
     }
 
     /// - Parameter animated: `false` al abrir un proyecto, para que Ghostty pase al frente sin esperar.

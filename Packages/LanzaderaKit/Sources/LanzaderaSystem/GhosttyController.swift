@@ -7,12 +7,14 @@ public protocol GhosttyControlling {
     var isRunning: Bool { get }
     /// Ya hay permiso para controlarlo: consultar no mostrará la alerta de macOS.
     var isAuthorized: Bool { get }
+    /// Ghostty está instalado.
+    var isInstalled: Bool { get }
     /// Ventanas abiertas. Vacío si Ghostty no está corriendo (no lo abre para consultar).
-    func windows() throws(ScriptError) -> [GhosttyWindow]
+    func windows() async throws(ScriptError) -> [GhosttyWindow]
     /// Abre el proyecto y devuelve los `id` de sus ventanas, en orden.
-    func open(_ project: Project) throws(ScriptError) -> [String]
+    func open(_ project: Project) async throws(ScriptError) -> [String]
     /// Trae al frente un proyecto ya abierto.
-    func activate(_ match: ProjectMatch) throws(ScriptError)
+    func activate(_ match: ProjectMatch) async throws(ScriptError)
 }
 
 public final class GhosttyController: GhosttyControlling {
@@ -22,9 +24,9 @@ public final class GhosttyController: GhosttyControlling {
     /// se olvida si un script falla por permiso.
     private var knownAuthorized = false
 
-    public init(runner: any ScriptRunning = AppleScriptRunner()) {
+    public init(runner: any ScriptRunning = OSAScriptRunner()) {
         self.runner = runner
-        (runner as? AppleScriptRunner)?.prepare(GhosttyScript.snapshot)
+        (runner as? OSAScriptRunner)?.prepare(GhosttyScript.snapshot)
     }
 
     public var isRunning: Bool {
@@ -36,26 +38,26 @@ public final class GhosttyController: GhosttyControlling {
         return knownAuthorized
     }
 
-    public static var isInstalled: Bool {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) != nil
+    public var isInstalled: Bool {
+        NSWorkspace.shared.urlForApplication(withBundleIdentifier: Self.bundleID) != nil
     }
 
-    public func windows() throws(ScriptError) -> [GhosttyWindow] {
+    public func windows() async throws(ScriptError) -> [GhosttyWindow] {
         guard isRunning else { return [] }
-        return GhosttySnapshot.parse(try run(GhosttyScript.snapshot))
+        return GhosttySnapshot.parse(try await run(GhosttyScript.snapshot))
     }
 
-    public func open(_ project: Project) throws(ScriptError) -> [String] {
-        try run(GhosttyScript.open(project)).texts
+    public func open(_ project: Project) async throws(ScriptError) -> [String] {
+        try await run(GhosttyScript.open(project)).texts
     }
 
-    public func activate(_ match: ProjectMatch) throws(ScriptError) {
-        _ = try run(GhosttyScript.activate(windowIDs: match.windowIDs, mainWindowID: match.mainWindowID, mainTabID: match.mainTabID))
+    public func activate(_ match: ProjectMatch) async throws(ScriptError) {
+        _ = try await run(GhosttyScript.activate(windowIDs: match.windowIDs, mainWindowID: match.mainWindowID, mainTabID: match.mainTabID))
     }
 
-    private func run(_ source: String) throws(ScriptError) -> ScriptValue {
+    private func run(_ source: String) async throws(ScriptError) -> ScriptValue {
         do {
-            let value = try runner.run(source)
+            let value = try await runner.run(source)
             knownAuthorized = true
             return value
         } catch {

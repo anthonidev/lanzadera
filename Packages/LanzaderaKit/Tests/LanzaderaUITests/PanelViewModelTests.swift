@@ -28,7 +28,7 @@ struct PanelViewModelTests {
         return (PanelViewModel(store: store, launcher: launcher), ghostty)
     }
 
-    @Test func `filtrar vuelve la selección al primero y no se sale de la lista`() {
+    @Test func `filtrar vuelve la selección al primero y no se sale de la lista`() async {
         let (model, _) = makeModel()
         model.moveSelection(by: 5)
         #expect(model.selection == 2)
@@ -41,14 +41,14 @@ struct PanelViewModelTests {
         #expect(model.selection == 0)
     }
 
-    @Test func `Enter con lista vacía no hace nada`() {
+    @Test func `Enter con lista vacía no hace nada`() async {
         let (model, ghostty) = makeModel()
         model.query = "zzz"
         model.openSelected(forceNew: false)
         #expect(ghostty.opened.isEmpty)
     }
 
-    @Test func `un proyecto con errores no se abre y avisa`() {
+    @Test func `un proyecto con errores no se abre y avisa`() async {
         let (model, ghostty) = makeModel()
         var closed = false
         model.onClose = { closed = true }
@@ -59,18 +59,18 @@ struct PanelViewModelTests {
         #expect(model.notice?.contains("errores") == true)
     }
 
-    @Test func `Enter abre el elegido y cierra el panel`() {
+    @Test func `Enter abre el elegido y cierra el panel`() async {
         let (model, ghostty) = makeModel()
         var closed = false
         model.onClose = { closed = true }
         model.moveSelection(by: 1)
-        model.openSelected(forceNew: false)
+        await model.openSelected(forceNew: false)?.value
         #expect(ghostty.opened == ["Smart"])
         #expect(closed)
         #expect(model.openNames.contains("Smart"))
     }
 
-    @Test func `carpeta que falta se avisa en el panel sin cerrarlo`() {
+    @Test func `carpeta que falta se avisa en el panel sin cerrarlo`() async {
         let (model, ghostty) = makeModel(missing: ["/n"])
         var closed = false
         model.onClose = { closed = true }
@@ -82,7 +82,7 @@ struct PanelViewModelTests {
         #expect(model.notice == "No existe la carpeta /n")
     }
 
-    @Test func `YAML roto conserva la última versión válida`() {
+    @Test func `YAML roto conserva la última versión válida`() async {
         let (model, _) = makeModel()
         model.store.apply("projects:\n  - name: [roto\n")
         #expect(model.store.fileError != nil)
@@ -112,7 +112,7 @@ struct PanelInteractionTests {
         return (PanelViewModel(store: store, launcher: launcher), ghostty)
     }
 
-    @Test func `el hover no mueve la selección si el panel aparece bajo el cursor`() {
+    @Test func `el hover no mueve la selección si el panel aparece bajo el cursor`() async {
         let (model, _) = makeModel()
         model.prepareForPresentation(mouseLocation: CGPoint(x: 10, y: 10))
         model.hover(1, mouseLocation: CGPoint(x: 10, y: 10))
@@ -121,15 +121,25 @@ struct PanelInteractionTests {
         #expect(model.selection == 1)
     }
 
-    @Test func `⌘ y un número abre esa posición y fuera de rango no hace nada`() {
+    @Test func `⌘ y un número abre esa posición y fuera de rango no hace nada`() async {
         let (model, ghostty) = makeModel()
-        model.open(position: 2, forceNew: false)
+        await model.open(position: 2, forceNew: false)?.value
         #expect(ghostty.opened == ["B"])
-        model.open(position: 9, forceNew: false)
+        await model.open(position: 9, forceNew: false)?.value
         #expect(ghostty.opened == ["B"])
     }
 
-    @Test func `la lista filtrada se recalcula al cambiar el archivo`() {
+    @Test func `mientras un proyecto se abre otro Enter no abre otra vez`() async {
+        let (model, ghostty) = makeModel()
+        let first = model.openSelected(forceNew: false)
+        let second = model.openSelected(forceNew: false)
+        #expect(second == nil)
+        await first?.value
+        #expect(ghostty.opened == ["A"])
+        #expect(!model.isLaunching)
+    }
+
+    @Test func `la lista filtrada se recalcula al cambiar el archivo`() async {
         let (model, _) = makeModel()
         #expect(model.items.count == 2)
         model.store.apply("projects:\n  - name: C\n    root: /c\n    tabs:\n      - title: C\n")

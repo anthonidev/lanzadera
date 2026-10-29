@@ -6,6 +6,7 @@ import Testing
 final class FakeGhostty: GhosttyControlling {
     var isRunning = true
     var isAuthorized = true
+    var isInstalled = true
     var openWindows: [GhosttyWindow] = []
     var opened: [String] = []
     var activated: [ProjectMatch] = []
@@ -14,19 +15,19 @@ final class FakeGhostty: GhosttyControlling {
     var snapshotCount = 0
     var activateError: ScriptError?
 
-    func windows() throws(ScriptError) -> [GhosttyWindow] {
+    func windows() async throws(ScriptError) -> [GhosttyWindow] {
         if let error { throw error }
         snapshotCount += 1
         return openWindows
     }
 
-    func open(_ project: Project) throws(ScriptError) -> [String] {
+    func open(_ project: Project) async throws(ScriptError) -> [String] {
         if let error { throw error }
         opened.append(project.name)
         return nextIDs
     }
 
-    func activate(_ match: ProjectMatch) throws(ScriptError) {
+    func activate(_ match: ProjectMatch) async throws(ScriptError) {
         if let error = activateError ?? error { throw error }
         activated.append(match)
     }
@@ -54,34 +55,34 @@ struct ProjectLauncherTests {
         ProjectTab(title: "GLOBAL", panes: [Pane(directory: "/n")]),
     ])])
 
-    @Test func `abre desde cero y registra las ventanas`() {
+    @Test func `abre desde cero y registra las ventanas`() async {
         let ghostty = FakeGhostty()
         let registry = FakeRegistry()
         let launcher = ProjectLauncher(ghostty: ghostty, registry: registry, folders: FakeFolders())
-        #expect(launcher.launch(project) == .opened)
+        #expect(await launcher.launch(project) == .opened)
         #expect(ghostty.opened == ["Nexus"])
         #expect(registry.entries["Nexus"] == ["nueva-1"])
     }
 
-    @Test func `carpeta inexistente no llama a Ghostty`() {
+    @Test func `carpeta inexistente no llama a Ghostty`() async {
         let ghostty = FakeGhostty()
         let launcher = ProjectLauncher(ghostty: ghostty, registry: FakeRegistry(), folders: FakeFolders(missing: ["/n"]))
-        #expect(launcher.launch(project) == .missingFolders(["/n"]))
+        #expect(await launcher.launch(project) == .missingFolders(["/n"]))
         #expect(ghostty.opened.isEmpty)
     }
 
-    @Test func `si ya está abierto lo activa en vez de abrir otro`() {
+    @Test func `si ya está abierto lo activa en vez de abrir otro`() async {
         let ghostty = FakeGhostty()
         ghostty.openWindows = [GhosttyWindow(id: "w1", tabs: [GhosttyTab(id: "t1", name: "BACKEND")])]
         let registry = FakeRegistry()
         registry.entries["Nexus"] = ["w1"]
         let launcher = ProjectLauncher(ghostty: ghostty, registry: registry, folders: FakeFolders())
-        #expect(launcher.launch(project) == .focused)
+        #expect(await launcher.launch(project) == .focused)
         #expect(ghostty.opened.isEmpty)
         #expect(ghostty.activated.first?.mainTabID == "t1")
     }
 
-    @Test func `con id muerto lo reconoce por huella y actualiza el registro`() {
+    @Test func `con id muerto lo reconoce por huella y actualiza el registro`() async {
         let ghostty = FakeGhostty()
         ghostty.openWindows = [GhosttyWindow(id: "restaurada", tabs: [
             GhosttyTab(id: "a", name: "BACKEND"), GhosttyTab(id: "b", name: "GLOBAL"),
@@ -89,78 +90,86 @@ struct ProjectLauncherTests {
         let registry = FakeRegistry()
         registry.entries["Nexus"] = ["muerta"]
         let launcher = ProjectLauncher(ghostty: ghostty, registry: registry, folders: FakeFolders())
-        #expect(launcher.launch(project) == .focused)
+        #expect(await launcher.launch(project) == .focused)
         #expect(registry.entries["Nexus"] == ["restaurada"])
     }
 
-    @Test func `forzar abre aunque ya esté abierto`() {
+    @Test func `forzar abre aunque ya esté abierto`() async {
         let ghostty = FakeGhostty()
         ghostty.openWindows = [GhosttyWindow(id: "w1", tabs: [])]
         let registry = FakeRegistry()
         registry.entries["Nexus"] = ["w1"]
         let launcher = ProjectLauncher(ghostty: ghostty, registry: registry, folders: FakeFolders())
-        #expect(launcher.launch(project, forceNew: true) == .opened)
+        #expect(await launcher.launch(project, forceNew: true) == .opened)
         #expect(ghostty.activated.isEmpty)
         #expect(registry.entries["Nexus"] == ["nueva-1"])
     }
 
-    @Test func `Ghostty cerrado abre sin consultar`() {
+    @Test func `Ghostty cerrado abre sin consultar`() async {
         let ghostty = FakeGhostty()
         ghostty.isRunning = false
         ghostty.openWindows = [GhosttyWindow(id: "w1", tabs: [])]
         let registry = FakeRegistry()
         registry.entries["Nexus"] = ["w1"]
         let launcher = ProjectLauncher(ghostty: ghostty, registry: registry, folders: FakeFolders())
-        #expect(launcher.launch(project) == .opened)
-        #expect(launcher.openProjects(among: [project]).isEmpty)
+        #expect(await launcher.launch(project) == .opened)
+        #expect(await launcher.openProjects(among: [project]).isEmpty)
     }
 
-    @Test func `abrir justo después de mostrar el panel reutiliza la foto`() {
+    @Test func `abrir justo después de mostrar el panel reutiliza la foto`() async {
         let ghostty = FakeGhostty()
         let launcher = ProjectLauncher(ghostty: ghostty, registry: FakeRegistry(), folders: FakeFolders())
-        _ = launcher.openProjects(among: [project])
-        #expect(launcher.launch(project) == .opened)
+        _ = await launcher.openProjects(among: [project])
+        #expect(await launcher.launch(project) == .opened)
         #expect(ghostty.snapshotCount == 1)
         // Tras abrir, la foto se descarta: la siguiente apertura vuelve a consultar.
-        _ = launcher.launch(project)
+        _ = await launcher.launch(project)
         #expect(ghostty.snapshotCount == 2)
     }
 
-    @Test func `foto vencida se vuelve a pedir`() {
+    @Test func `foto vencida se vuelve a pedir`() async {
         let ghostty = FakeGhostty()
         let launcher = ProjectLauncher(ghostty: ghostty, registry: FakeRegistry(), folders: FakeFolders(), snapshotLifetime: .zero)
-        _ = launcher.openProjects(among: [project])
-        _ = launcher.launch(project)
+        _ = await launcher.openProjects(among: [project])
+        _ = await launcher.launch(project)
         #expect(ghostty.snapshotCount == 2)
     }
 
-    @Test func `si la ventana recordada ya no existe al activarla, abre desde cero`() {
+    @Test func `si la ventana recordada ya no existe al activarla, abre desde cero`() async {
         let ghostty = FakeGhostty()
         ghostty.openWindows = [GhosttyWindow(id: "w1", tabs: [])]
         ghostty.activateError = ScriptError(code: -1728, message: "no existe")
         let registry = FakeRegistry()
         registry.entries["Nexus"] = ["w1"]
         let launcher = ProjectLauncher(ghostty: ghostty, registry: registry, folders: FakeFolders())
-        #expect(launcher.launch(project) == .opened)
+        #expect(await launcher.launch(project) == .opened)
         #expect(registry.entries["Nexus"] == ["nueva-1"])
     }
 
-    @Test func `sin permiso el indicador no consulta a Ghostty`() {
+    @Test func `sin permiso el indicador no consulta a Ghostty`() async {
         let ghostty = FakeGhostty()
         ghostty.isAuthorized = false
         ghostty.error = ScriptError(code: -1, message: "no debería consultarse")
         let launcher = ProjectLauncher(ghostty: ghostty, registry: FakeRegistry(), folders: FakeFolders())
-        #expect(launcher.openProjects(among: [project]).isEmpty)
+        #expect(await launcher.openProjects(among: [project]).isEmpty)
     }
 
-    @Test func `permiso denegado y error del script se informan sin registrar nada`() {
+    @Test func `sin Ghostty instalado avisa sin intentar abrir`() async {
+        let ghostty = FakeGhostty()
+        ghostty.isInstalled = false
+        let launcher = ProjectLauncher(ghostty: ghostty, registry: FakeRegistry(), folders: FakeFolders())
+        #expect(await launcher.launch(project) == .ghosttyMissing)
+        #expect(ghostty.opened.isEmpty)
+    }
+
+    @Test func `permiso denegado y error del script se informan sin registrar nada`() async {
         let ghostty = FakeGhostty()
         let registry = FakeRegistry()
         let launcher = ProjectLauncher(ghostty: ghostty, registry: registry, folders: FakeFolders())
         ghostty.error = ScriptError(code: -1743, message: "no")
-        #expect(launcher.launch(project) == .permissionDenied)
+        #expect(await launcher.launch(project) == .permissionDenied)
         ghostty.error = ScriptError(code: -2700, message: "falló")
-        #expect(launcher.launch(project) == .failed("falló"))
+        #expect(await launcher.launch(project) == .failed("falló"))
         #expect(registry.entries.isEmpty)
     }
 }

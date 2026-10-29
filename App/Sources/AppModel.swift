@@ -70,8 +70,10 @@ final class AppModel {
 
     /// Abrir desde el menú de la barra.
     func launch(_ project: Project) {
-        let result = launcher.launch(project)
-        report(result, for: project)
+        Task {
+            let result = await launcher.launch(project)
+            report(result, for: project)
+        }
     }
 
     func openConfigFile() {
@@ -147,6 +149,11 @@ final class AppModel {
             alert.informativeText = "Actívalo en Ajustes → Privacidad y seguridad → Automatización → Lanzadera → Ghostty."
             alert.addButton(withTitle: "Abrir Ajustes")
             alert.addButton(withTitle: "Cerrar")
+        case .ghosttyMissing:
+            alert.messageText = "Ghostty no está instalado"
+            alert.informativeText = "Lanzadera abre los proyectos en Ghostty. Descárgalo de ghostty.org e instálalo en Aplicaciones."
+            alert.addButton(withTitle: "Abrir ghostty.org")
+            alert.addButton(withTitle: "Cerrar")
         case .failed(let message):
             alert.messageText = "No se pudo abrir «\(project.name)» en Ghostty"
             alert.informativeText = message
@@ -158,6 +165,7 @@ final class AppModel {
         switch result {
         case .missingFolders: Editor.open(store.file)
         case .permissionDenied: AutomationPermission.openSettings()
+        case .ghosttyMissing: if let url = URL(string: "https://ghostty.org") { NSWorkspace.shared.open(url) }
         default: break
         }
     }
