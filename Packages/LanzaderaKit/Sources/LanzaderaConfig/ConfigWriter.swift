@@ -50,6 +50,31 @@ public enum ConfigWriter {
         return result
     }
 
+    /// Reemplaza el bloque del proyecto con ese nombre (sin distinguir mayúsculas) y deja intacto el resto,
+    /// comentarios incluidos. Si no existe, lo agrega al final.
+    /// - Throws: el error de sintaxis del archivo actual: sin poder leerlo no se sabe dónde está el bloque.
+    public static func replacing(
+        _ name: String, with project: ProjectSpec, in text: String
+    ) throws(ConfigSyntaxError) -> String {
+        let specs = try ConfigLoader.specs(from: text)
+        guard let index = specs.firstIndex(where: { $0.name?.lowercased() == name.lowercased() }),
+              let firstLine = specs[index].line
+        else { return appending([project], to: text) }
+
+        var lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let start = firstLine - 1
+        var end = specs.indices.contains(index + 1) ? (specs[index + 1].line ?? lines.count + 1) - 1 : lines.count
+        // Las líneas en blanco y los comentarios del final pertenecen al proyecto siguiente.
+        while end > start + 1 {
+            let line = lines[end - 1].trimmingCharacters(in: .whitespaces)
+            guard line.isEmpty || line.hasPrefix("#") else { break }
+            end -= 1
+        }
+        let replacement = yaml(for: project).split(separator: "\n").map(String.init)
+        lines.replaceSubrange(start..<end, with: replacement)
+        return lines.joined(separator: "\n")
+    }
+
     /// Un proyecto como elemento de la lista `projects`.
     public static func yaml(for project: ProjectSpec) -> String {
         var lines: [String] = []

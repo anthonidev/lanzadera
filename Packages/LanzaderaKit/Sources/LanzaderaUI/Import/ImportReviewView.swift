@@ -45,13 +45,20 @@ public struct ImportReviewView: View {
                 Spacer()
                 Button("Cancelar", role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
-                Button("Importar \(model.specsToImport.count) proyectos") { model.importSelected() }
+                Button(importTitle) { model.importSelected() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(model.specsToImport.isEmpty)
             }
         }
         .padding(24)
         .frame(width: 620, height: 640)
+    }
+
+    private var importTitle: String {
+        let count = model.specsToImport.count
+        let base = count == 1 ? "Importar 1 proyecto" : "Importar \(count) proyectos"
+        let replacing = model.replacementCount
+        return replacing == 0 ? base : "\(base) (\(replacing) reemplaza\(replacing == 1 ? "" : "n"))"
     }
 }
 
@@ -66,13 +73,17 @@ private struct CandidateCard: View {
                 Toggle(isOn: projectBinding) {
                     Text("\(candidate.emoji ?? "▫️") \(candidate.name)").font(.headline)
                 }
-                .disabled(model.isExisting(candidate.name))
                 Spacer()
                 if model.isExisting(candidate.name) {
-                    Text("Ya está en tu archivo: se omite")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
+                    let replacing = model.selectedProjects.contains(candidate.name)
+                    Label(
+                        replacing ? "Ya está en tu archivo: se reemplazará" : "Ya está en tu archivo: márcalo para reemplazarlo",
+                        systemImage: replacing ? "arrow.triangle.2.circlepath" : "checkmark.circle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(replacing ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                }
+                if !model.isExisting(candidate.name) || model.selectedProjects.contains(candidate.name) {
                     Button(showsPreview ? "Ocultar YAML" : "Ver YAML") { showsPreview.toggle() }
                         .buttonStyle(.link)
                         .font(.caption)
@@ -92,7 +103,7 @@ private struct CandidateCard: View {
         }
         .padding(12)
         .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 12))
-        .opacity(model.isExisting(candidate.name) ? 0.6 : 1)
+        .opacity(model.isExisting(candidate.name) && !model.selectedProjects.contains(candidate.name) ? 0.6 : 1)
     }
 
     private func windowRow(_ window: ImportWindow, index: Int) -> some View {

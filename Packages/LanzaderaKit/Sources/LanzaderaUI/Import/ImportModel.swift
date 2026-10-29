@@ -13,7 +13,7 @@ public final class ImportModel {
     public var selectedProjects: Set<String> = []
     /// Ventanas elegidas de cada proyecto (índices).
     public var includedWindows: [String: Set<Int>] = [:]
-    /// Proyectos que ya están en el archivo: no se importan (no se sobrescribe nada).
+    /// Proyectos que ya están en el archivo: vienen sin marcar y, si se marcan, se **reemplazan**.
     public private(set) var existingNames: Set<String> = []
     public var errorMessage: String?
 
@@ -67,13 +67,18 @@ public final class ImportModel {
         }
     }
 
-    /// Proyectos que se escribirán (elegidos, nuevos y con al menos una ventana).
+    /// Proyectos que se escribirán (elegidos y con al menos una ventana), nuevos o para reemplazar.
     public var specsToImport: [ProjectSpec] {
         candidates.compactMap { candidate in
             let windows = includedWindows[candidate.name, default: []]
-            guard selectedProjects.contains(candidate.name), !isExisting(candidate.name), !windows.isEmpty else { return nil }
+            guard selectedProjects.contains(candidate.name), !windows.isEmpty else { return nil }
             return importer.spec(for: candidate, including: windows)
         }
+    }
+
+    /// Cuántos de los elegidos reemplazan a uno que ya existe.
+    public var replacementCount: Int {
+        specsToImport.count { isExisting($0.name ?? "") }
     }
 
     /// Vista previa de lo que se agregará al archivo.
@@ -86,10 +91,16 @@ public final class ImportModel {
         guard !specs.isEmpty else { return }
         do {
             try ConfigLocation.createIfMissing(at: file)
-            let current = try String(contentsOf: file, encoding: .utf8)
-            try ConfigLocation.write(ConfigWriter.appending(specs, to: current), to: file)
+            var text = try String(contentsOf: file, encoding: .utf8)
+            for spec in specs where isExisting(spec.name ?? "") {
+                text = try ConfigWriter.replacing(spec.name ?? "", with: spec, in: text)
+            }
+            text = ConfigWriter.appending(specs.filter { !isExisting($0.name ?? "") }, to: text)
+            try ConfigLocation.write(text, to: file)
             logger.info("Importados \(specs.count) proyectos desde Warp")
             onFinish(specs.count)
+        } catch let error as ConfigSyntaxError {
+            errorMessage = "Primero corrige proyectos.yaml: \(error.description)"
         } catch {
             errorMessage = "No se pudo escribir \(file.path(percentEncoded: false)): \(error.localizedDescription)"
         }

@@ -184,3 +184,55 @@ struct YAMLErrorTranslationTests {
         #expect(YAMLErrorTranslator.translate("something new", line: "x") == "something new")
     }
 }
+
+struct ConfigReplaceTests {
+    let resolver = ProjectResolver(homeDirectory: "/Users/yo")
+    let text = """
+        # Mis proyectos
+        projects:
+          - name: A
+            root: ~/a
+            tabs:
+              - title: A1
+              - title: A2
+
+          # El que importa
+          - name: Nexus # viejo
+            root: ~/viejo
+            tabs:
+              - title: VIEJA
+
+          - name: C
+            root: ~/c
+            tabs:
+              - title: C1
+        """
+
+    let replacement = ProjectSpec(name: "Nexus", emoji: "🔴", root: "~/nexus", windows: [WindowSpec(tabs: [
+        TabSpec(title: "BACKEND", cwd: "nexus-backend", panes: .count(3)),
+    ])])
+
+    @Test func `reemplaza solo el bloque del proyecto y conserva el resto`() throws {
+        let result = try ConfigWriter.replacing("nexus", with: replacement, in: text)
+        #expect(result.contains("# Mis proyectos"))
+        #expect(result.contains("# El que importa"))
+        #expect(!result.contains("VIEJA"))
+        let entries = try ConfigLoader.load(result, resolver: resolver)
+        #expect(entries.map(\.name) == ["A", "Nexus", "C"])
+        #expect(entries[1].project?.windows[0].tabs.map(\.title) == ["BACKEND"])
+        #expect(entries[0].project?.windows[0].tabs.count == 2)
+    }
+
+    @Test func `el último proyecto también se reemplaza`() throws {
+        let last = ProjectSpec(name: "C", root: "~/c", windows: [WindowSpec(tabs: [TabSpec(title: "NUEVA")])])
+        let entries = try ConfigLoader.load(ConfigWriter.replacing("C", with: last, in: text), resolver: resolver)
+        #expect(entries.map(\.name) == ["A", "Nexus", "C"])
+        #expect(entries[2].project?.windows[0].tabs.map(\.title) == ["NUEVA"])
+    }
+
+    @Test func `si no existe lo agrega y con el YAML roto no toca nada`() throws {
+        let other = ProjectSpec(name: "Z", root: "~/z", windows: [WindowSpec(tabs: [TabSpec(title: "Z")])])
+        #expect(try ConfigLoader.load(ConfigWriter.replacing("Z", with: other, in: text), resolver: resolver).map(\.name) == ["A", "Nexus", "C", "Z"])
+        #expect(throws: ConfigSyntaxError.self) { try ConfigWriter.replacing("A", with: other, in: "projects:\n  - name: [roto\n") }
+    }
+}
