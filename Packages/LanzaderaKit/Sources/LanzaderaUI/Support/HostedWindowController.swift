@@ -1,5 +1,4 @@
 import AppKit
-import LanzaderaConfig
 import SwiftUI
 
 /// Ventana con contenido SwiftUI, creada a mano porque la app no tiene ventana principal
@@ -32,9 +31,4 @@ public final class HostedWindowController {
     public func close() {
         window?.close()
     }
-}
-
-/// Ruta del archivo para las vistas (evita importar `LanzaderaConfig` en cada una).
-enum LanzaderaConfigFile {
-    static var url: URL { ConfigLocation.file }
 }

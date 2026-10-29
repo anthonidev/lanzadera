@@ -3,64 +3,125 @@ import LanzaderaConfig
 import LanzaderaSystem
 import SwiftUI
 
-/// Preferencias: atajo, costado del panel, inicio al encender y permiso para controlar Ghostty.
+/// Preferencias: atajo, costado del panel, archivo de proyectos, inicio al encender y permiso para controlar Ghostty.
 public struct SettingsView: View {
+    let store: ProjectStore
+    let onImport: () -> Void
+
     @State private var edge = Preferences.panelEdge
     @State private var launchAtLogin = LaunchAtLogin.isEnabled
     @State private var permission = AutomationPermission.status
     @State private var errorMessage: String?
-    let onImport: () -> Void
 
-    public init(onImport: @escaping () -> Void) {
+    public init(store: ProjectStore, onImport: @escaping () -> Void) {
+        self.store = store
         self.onImport = onImport
     }
 
     public var body: some View {
         Form {
-            Section("Panel") {
-                KeyboardShortcuts.Recorder("Atajo para abrir el panel:", name: .togglePanel)
-                Picker("Aparece a la", selection: $edge) {
-                    ForEach(PanelEdge.allCases, id: \.self) { Text($0.label).tag($0) }
-                }
-                .onChange(of: edge) { Preferences.panelEdge = edge }
+            Section {
+                header
             }
-            Section("Proyectos") {
-                LabeledContent("Archivo") {
-                    Text(ConfigLocation.file.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+            Section {
+                LabeledContent {
+                    KeyboardShortcuts.Recorder(for: .togglePanel)
+                } label: {
+                    Label("Atajo", systemImage: "keyboard")
+                }
+                Picker(selection: $edge) {
+                    ForEach(PanelEdge.allCases, id: \.self) { Text($0.label).tag($0) }
+                } label: {
+                    Label("Aparece a la", systemImage: "sidebar.right")
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: edge) { Preferences.panelEdge = edge }
+            } header: {
+                Text("Panel")
+            }
+            Section {
+                LabeledContent {
+                    statusOfFile
+                } label: {
+                    Label(displayPath, systemImage: "doc.text")
                         .textSelection(.enabled)
-                        .foregroundStyle(.secondary)
                 }
                 HStack {
-                    Button("Abrir en Zed") { Editor.open(ConfigLocation.file) }
-                    Button("Mostrar en Finder") { NSWorkspace.shared.activateFileViewerSelecting([ConfigLocation.file]) }
+                    Button("Abrir en Zed") { Editor.open(store.file) }
+                    Button("Mostrar en Finder") { NSWorkspace.shared.activateFileViewerSelecting([store.file]) }
+                    Spacer()
                     Button("Importar desde Warp…", action: onImport)
                 }
+            } header: {
+                Text("Proyectos")
             }
-            Section("Sistema") {
-                Toggle("Iniciar al encender la Mac", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { setLaunchAtLogin(launchAtLogin) }
-                LabeledContent("Controlar Ghostty") {
-                    PermissionStatusView(status: permission)
+            Section {
+                Toggle(isOn: $launchAtLogin) {
+                    Label("Iniciar al encender la Mac", systemImage: "power")
                 }
-                HStack {
-                    Button("Pedir permiso") {
-                        Task { permission = await GhosttyPermissionFlow.request() }
+                .onChange(of: launchAtLogin) { setLaunchAtLogin(launchAtLogin) }
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        PermissionStatusView(status: permission)
+                        if permission == .denied {
+                            Button("Abrir Ajustes") { AutomationPermission.openSettings() }
+                        } else if permission != .granted {
+                            Button("Pedir permiso") {
+                                Task { permission = await GhosttyPermissionFlow.request() }
+                            }
+                        }
                     }
-                    .disabled(permission == .granted)
-                    Button("Abrir Ajustes de Automatización") { AutomationPermission.openSettings() }
+                } label: {
+                    Label("Controlar Ghostty", systemImage: "terminal")
                 }
-            }
-            if let errorMessage {
-                Text(errorMessage).foregroundStyle(.red)
+            } header: {
+                Text("Sistema")
+            } footer: {
+                if let errorMessage {
+                    Text(errorMessage).foregroundStyle(.red)
+                }
             }
         }
         .formStyle(.grouped)
-        .frame(width: 520)
+        .frame(width: 540)
         .fixedSize(horizontal: false, vertical: true)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             permission = AutomationPermission.status
             launchAtLogin = LaunchAtLogin.isEnabled
         }
+    }
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Lanzadera").font(.title3.bold())
+                Text("Versión \(Self.version)").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    /// Cuántos proyectos hay o el error del archivo.
+    @ViewBuilder
+    private var statusOfFile: some View {
+        if let error = store.fileError {
+            Label("Línea \(error.line.map(String.init) ?? "?")", systemImage: "exclamationmark.triangle.fill")
+                .foregroundStyle(.orange)
+                .help(error.description)
+        } else {
+            Text(store.entries.count == 1 ? "1 proyecto" : "\(store.entries.count) proyectos")
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var displayPath: String {
+        store.file.path(percentEncoded: false).replacingOccurrences(of: NSHomeDirectory(), with: "~")
+    }
+
+    private static var version: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
     }
 
     private func setLaunchAtLogin(_ enabled: Bool) {

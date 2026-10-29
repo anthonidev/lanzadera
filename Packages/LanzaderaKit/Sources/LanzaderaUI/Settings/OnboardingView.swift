@@ -2,92 +2,155 @@ import KeyboardShortcuts
 import LanzaderaSystem
 import SwiftUI
 
-/// Primer uso: permiso para controlar Ghostty → importar Warp → ⌥Espacio.
+/// Primer uso: permiso para controlar Ghostty → traer los proyectos → ⌥Espacio.
+/// Cada paso se marca solo al cumplirse (el permiso al volver de Ajustes, los proyectos al importar).
 public struct OnboardingView: View {
-    @State private var permission = AutomationPermission.status
-    @State private var isRequesting = false
+    let store: ProjectStore
     let hasWarpConfigurations: Bool
     let onImport: () -> Void
     let onDone: () -> Void
 
-    public init(hasWarpConfigurations: Bool, onImport: @escaping () -> Void, onDone: @escaping () -> Void) {
+    @State private var permission = AutomationPermission.status
+    @State private var isRequesting = false
+
+    public init(store: ProjectStore, hasWarpConfigurations: Bool, onImport: @escaping () -> Void, onDone: @escaping () -> Void) {
+        self.store = store
         self.hasWarpConfigurations = hasWarpConfigurations
         self.onImport = onImport
         self.onDone = onDone
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack(spacing: 12) {
-                Text("🚀").font(.system(size: 44))
-                VStack(alignment: .leading) {
-                    Text("Bienvenido a Lanzadera").font(.title.bold())
-                    Text("Un clic y tu proyecto está listo en Ghostty.").foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 22) {
+            header
+            VStack(alignment: .leading, spacing: 18) {
+                OnboardingStep(number: 1, title: "Permitir que Lanzadera controle Ghostty", isDone: permission == .granted) {
+                    permissionStep
                 }
-            }
-
-            step(1, title: "Permitir que Lanzadera controle Ghostty") {
-                Text("macOS te preguntará una vez. Sin este permiso Lanzadera no puede abrir ventanas.")
-                HStack {
-                    PermissionStatusView(status: permission)
-                    Spacer()
-                    if permission == .denied {
-                        Button("Abrir Ajustes") { AutomationPermission.openSettings() }
-                    } else if permission != .granted {
-                        Button(isRequesting ? "Esperando…" : "Dar permiso") {
-                            isRequesting = true
-                            Task {
-                                permission = await GhosttyPermissionFlow.request()
-                                isRequesting = false
-                            }
-                        }
-                        .disabled(isRequesting)
+                OnboardingStep(number: 2, title: "Traer tus proyectos", isDone: !store.entries.isEmpty) {
+                    projectsStep
+                }
+                OnboardingStep(number: 3, title: "Abrir un proyecto", isDone: false) {
+                    HStack(spacing: 6) {
+                        Text("Pulsa")
+                        Keycap(shortcutText)
+                        Text("o el ícono de la barra de menú, y elige uno.")
                     }
                 }
             }
-
-            step(2, title: "Traer tus proyectos") {
-                if hasWarpConfigurations {
-                    Text("Encontré configuraciones de Warp. Puedes revisarlas antes de importarlas.")
-                    Button("Importar desde Warp…", action: onImport)
-                } else {
-                    Text("Escribe tus proyectos en ~/.config/lanzadera/proyectos.yaml (tiene un ejemplo comentado).")
-                    Button("Abrir el archivo en Zed") { Editor.open(LanzaderaConfigFile.url) }
-                }
-            }
-
-            step(3, title: "Listo") {
-                HStack(spacing: 4) {
-                    Text("Usa")
-                    Text(KeyboardShortcuts.getShortcut(for: .togglePanel)?.description ?? "⌥Space").bold()
-                    Text("o el ícono 🚀 de la barra de menú y elige un proyecto.")
-                }
-            }
-
             HStack {
                 Spacer()
                 Button("Empezar", action: onDone)
+                    .buttonStyle(.glassProminent)
+                    .controlSize(.large)
                     .keyboardShortcut(.defaultAction)
             }
         }
         .padding(28)
-        .frame(width: 520)
+        .frame(width: 540)
+        .animation(.snappy, value: permission)
+        .animation(.snappy, value: store.entries.isEmpty)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             permission = AutomationPermission.status
         }
     }
 
-    private func step(_ number: Int, title: String, @ViewBuilder content: () -> some View) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text("\(number)")
-                .font(.headline)
-                .frame(width: 26, height: 26)
-                .background(.tint.opacity(0.2), in: .circle)
-            VStack(alignment: .leading, spacing: 6) {
-                Text(title).font(.headline)
-                content()
-                    .foregroundStyle(.secondary)
+    private var header: some View {
+        HStack(spacing: 14) {
+            Image(nsImage: NSApp.applicationIconImage)
+                .resizable()
+                .frame(width: 64, height: 64)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Bienvenido a Lanzadera").font(.title.bold())
+                Text("Un atajo y tu proyecto está listo en Ghostty.").foregroundStyle(.secondary)
             }
         }
+    }
+
+    @ViewBuilder
+    private var permissionStep: some View {
+        Text("macOS te preguntará una vez. Sin este permiso Lanzadera no puede abrir ventanas.")
+        HStack {
+            PermissionStatusView(status: permission)
+            Spacer()
+            if permission == .denied {
+                Button("Abrir Ajustes") { AutomationPermission.openSettings() }
+                    .buttonStyle(.glass)
+            } else if permission != .granted {
+                Button {
+                    isRequesting = true
+                    Task {
+                        permission = await GhosttyPermissionFlow.request()
+                        isRequesting = false
+                    }
+                } label: {
+                    if isRequesting {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Dar permiso")
+                    }
+                }
+                .buttonStyle(.glassProminent)
+                .disabled(isRequesting)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var projectsStep: some View {
+        if !store.entries.isEmpty {
+            Text(store.entries.count == 1 ? "Tienes 1 proyecto." : "Tienes \(store.entries.count) proyectos.")
+            Button("Editar en Zed") { Editor.open(store.file) }
+                .buttonStyle(.glass)
+        } else if hasWarpConfigurations {
+            Text("Encontré configuraciones de Warp. Puedes revisarlas antes de importarlas.")
+            Button("Importar desde Warp…", action: onImport)
+                .buttonStyle(.glassProminent)
+        } else {
+            Text("Escríbelos en ~/.config/lanzadera/proyectos.yaml (tiene un ejemplo comentado).")
+            Button("Abrir el archivo en Zed") { Editor.open(store.file) }
+                .buttonStyle(.glass)
+        }
+    }
+
+    private var shortcutText: String {
+        KeyboardShortcuts.getShortcut(for: .togglePanel)?.description ?? "⌥Espacio"
+    }
+}
+
+/// Un paso numerado que pasa a ✓ al cumplirse.
+struct OnboardingStep<Content: View>: View {
+    let number: Int
+    let title: String
+    let isDone: Bool
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(isDone ? AnyShapeStyle(.green.gradient) : AnyShapeStyle(.tint.opacity(0.18)))
+                if isDone {
+                    Image(systemName: "checkmark")
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .transition(.scale.combined(with: .opacity))
+                } else {
+                    Text("\(number)").font(.headline)
+                }
+            }
+            .frame(width: 28, height: 28)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(isDone ? .secondary : .primary)
+                content
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .background(.quaternary.opacity(isDone ? 0.2 : 0.4), in: .rect(cornerRadius: 16))
     }
 }

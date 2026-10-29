@@ -10,7 +10,7 @@ Lanzador de proyectos en Ghostty para macOS 27 (reemplazo de las *Launch Configu
 - `make install`: build Release en `/Applications/Lanzadera.app`.
 - `Lanzadera.xcodeproj` se genera con XcodeGen desde `project.yml`: no se edita a mano ni se versiona.
 - Ícono: `swift scripts/generate-icon.swift App/Resources/Assets.xcassets/AppIcon.appiconset`.
-- Ver el panel sin teclado (solo Debug): `open build/Build/Products/Debug/Lanzadera.app --args --panel`.
+- Ver una ventana sin teclado (solo Debug): `open build/Build/Products/Debug/Lanzadera.app --args --panel` (o `--settings`, `--onboarding`, `--import`).
 
 ## Arquitectura
 

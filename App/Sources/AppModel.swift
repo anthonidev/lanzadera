@@ -55,10 +55,13 @@ final class AppModel {
             showOnboarding()
         }
         #if DEBUG
-        // `open Lanzadera.app --args --panel`: abre el panel al arrancar, para revisarlo sin teclado.
-        if CommandLine.arguments.contains("--panel") {
-            panelController.show()
-        }
+        // `open Lanzadera.app --args --panel` (o --settings, --onboarding, --import): abre esa
+        // ventana al arrancar, para revisarla sin teclado.
+        let arguments = CommandLine.arguments
+        if arguments.contains("--panel") { panelController.show() }
+        if arguments.contains("--settings") { showSettings() }
+        if arguments.contains("--onboarding") { showOnboarding() }
+        if arguments.contains("--import") { showImport() }
         #endif
     }
 
@@ -94,6 +97,7 @@ final class AppModel {
 
     func showOnboarding() {
         onboarding.show(OnboardingView(
+            store: store,
             hasWarpConfigurations: ImportModel.hasWarpConfigurations,
             onImport: { [weak self] in self?.showImport() },
             onDone: { [weak self] in
@@ -105,7 +109,7 @@ final class AppModel {
 
     func showSettings() {
         panelController.hide()
-        settingsWindow.show(SettingsView(onImport: { [weak self] in self?.showImport() }))
+        settingsWindow.show(SettingsView(store: store, onImport: { [weak self] in self?.showImport() }))
     }
 
     func showImport() {

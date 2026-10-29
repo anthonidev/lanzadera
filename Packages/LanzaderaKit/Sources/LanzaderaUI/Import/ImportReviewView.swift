@@ -13,10 +13,18 @@ public struct ImportReviewView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Importar desde Warp")
-                .font(.title2.bold())
-            Text("Se agregan al final de proyectos.yaml (antes se guarda una copia .bak). Después puedes ajustarlos en Zed.")
-                .foregroundStyle(.secondary)
+            HStack(spacing: 12) {
+                Image(systemName: "square.and.arrow.down.on.square")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(.tint)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Importar desde Warp")
+                        .font(.title2.bold())
+                    Text("Se agregan a proyectos.yaml (antes se guarda una copia .bak). Después puedes ajustarlos en Zed.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             if model.candidates.isEmpty {
                 ContentUnavailableView(
@@ -46,6 +54,7 @@ public struct ImportReviewView: View {
                 Button("Cancelar", role: .cancel, action: onCancel)
                     .keyboardShortcut(.cancelAction)
                 Button(importTitle) { model.importSelected() }
+                    .buttonStyle(.glassProminent)
                     .keyboardShortcut(.defaultAction)
                     .disabled(model.specsToImport.isEmpty)
             }
@@ -101,8 +110,9 @@ private struct CandidateCard: View {
                     .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 8))
             }
         }
-        .padding(12)
-        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 12))
+        .padding(14)
+        .background(.quaternary.opacity(0.35), in: .rect(cornerRadius: 14))
+        .animation(.snappy(duration: 0.2), value: showsPreview)
         .opacity(model.isExisting(candidate.name) && !model.selectedProjects.contains(candidate.name) ? 0.6 : 1)
     }
 
@@ -113,11 +123,18 @@ private struct CandidateCard: View {
                     .font(.callout)
             }
             .disabled(!model.selectedProjects.contains(candidate.name))
-            ForEach(window.warnings, id: \.self) { warning in
-                Label(warning, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.leading, 22)
+            if !window.warnings.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(window.warnings, id: \.self) { warning in
+                        Label(warning, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 6)
+                .background(.orange.opacity(0.1), in: .rect(cornerRadius: 8))
+                .padding(.leading, 22)
             }
         }
     }
