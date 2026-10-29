@@ -42,6 +42,17 @@ public enum OpenProjectMatcher {
         window.tabs.map(\.title)
     }
 
+    /// `expected` aparece dentro de `names` en el mismo orden, aunque haya pestañas agregadas entre medio.
+    static func contains(_ expected: [String], inOrderWithin names: [String]) -> Bool {
+        guard !expected.isEmpty else { return false }
+        var remaining = expected[...]
+        for name in names where name == remaining.first {
+            remaining = remaining.dropFirst()
+            if remaining.isEmpty { return true }
+        }
+        return false
+    }
+
     private static func matchByFingerprint(
         _ project: Project, in windows: [GhosttyWindow], excluding claimed: Set<String>
     ) -> ProjectMatch? {
@@ -49,7 +60,11 @@ public enum OpenProjectMatcher {
         var found: [Int: GhosttyWindow] = [:]
         for (index, projectWindow) in project.windows.enumerated() {
             let expected = fingerprint(of: projectWindow)
-            if let window = windows.first(where: { !used.contains($0.id) && $0.tabNames == expected }) {
+            let candidates = windows.filter { !used.contains($0.id) }
+            // Primero una ventana idéntica; si no, una con pestañas agregadas a mano (las del proyecto, en orden).
+            let window = candidates.first { $0.tabNames == expected }
+                ?? candidates.first { contains(expected, inOrderWithin: $0.tabNames) }
+            if let window {
                 found[index] = window
                 used.insert(window.id)
             }

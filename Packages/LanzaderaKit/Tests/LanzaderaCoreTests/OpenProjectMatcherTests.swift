@@ -34,6 +34,23 @@ struct OpenProjectMatcherTests {
         #expect(OpenProjectMatcher.match(project, in: [window("x", ["FRONTEND", "BACKEND"])], registered: []) == nil)
     }
 
+    @Test func `reconoce la ventana aunque tenga pestañas agregadas a mano`() throws {
+        let windows = [window("w", ["BACKEND", "zsh", "FRONTEND", "logs"])]
+        let match = try #require(OpenProjectMatcher.match(project, in: windows, registered: []))
+        #expect(match.windowIDs == ["w"])
+        #expect(match.mainTabID == "w-tab2")
+    }
+
+    @Test func `prefiere la ventana idéntica a una con pestañas de más`() throws {
+        let windows = [window("con-extra", ["BACKEND", "zsh", "FRONTEND"]), window("exacta", ["BACKEND", "FRONTEND"])]
+        let match = try #require(OpenProjectMatcher.match(project, in: windows, registered: []))
+        #expect(match.windowIDs == ["exacta"])
+    }
+
+    @Test func `si falta una pestaña del proyecto no coincide`() {
+        #expect(OpenProjectMatcher.match(project, in: [window("x", ["BACKEND", "zsh"])], registered: []) == nil)
+    }
+
     @Test func `no adopta ventanas registradas a otro proyecto`() {
         let windows = [window("ajena", ["BACKEND", "FRONTEND"])]
         #expect(OpenProjectMatcher.match(project, in: windows, registered: [], claimed: ["ajena"]) == nil)
