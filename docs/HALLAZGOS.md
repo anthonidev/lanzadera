@@ -18,6 +18,16 @@ Bitácora de lo que se descubre en cada fase: trampas, mediciones y decisiones q
 | 9 | Vigilar el archivo | ✅ Llega un aviso con reemplazo atómico (`mv`), escritura al final y copia encima. Falta probar con Zed y con enlace simbólico | `log stream` de la app (29-oct) |
 | 10 | ⌥Espacio | ⏳ Registrado con KeyboardShortcuts. Simular la tecla con System Events pide otro permiso: probar a mano | |
 
+## Segunda ronda: rendimiento, robustez y pulido (29-oct-2026)
+
+- **AppleScript fuera del hilo principal.** `NSAppleScript` solo funciona en el hilo principal y lo bloqueaba ~0,6 s al abrir Nexus. `OSAScriptRunner` usa OSAKit con su propia `OSALanguageInstance`, siempre desde la misma cola serie (no hay dos scripts a la vez). Medido con un latido de 5 ms en el hilo principal durante la apertura real: **hueco máximo 7 ms**. Mismos tiempos de ejecución (~40 ms la consulta). Reconocer y activar un proyecto ya abierto: ~70 ms.
+- Si se elige un proyecto mientras la consulta del panel está en curso, se espera esa consulta en vez de pedir otra. Un segundo Enter durante una apertura no hace nada.
+- **Huella tolerante:** una ventana con pestañas agregadas a mano sigue reconociéndose (las del proyecto, en orden); siempre se prefiere una idéntica.
+- **Errores de YAML en español** (`YAMLErrorTranslator`), a partir de los mensajes reales de libyaml: sangría, tabuladores, comillas o corchetes sin cerrar, «:» de más, alias.
+- **Importar puede reemplazar** un proyecto existente: se sustituye solo su bloque (por las líneas que da Yams) y se conservan los comentarios.
+- Aviso propio si Ghostty no está instalado. Los textos de cada problema viven en `LaunchProblem` (probado).
+- Pruebas de `LanzaderaSystem` con archivos reales (vigilante, íconos, runner). `make lint` ahora es `--strict`: se habían colado advertencias porque SwiftLint devuelve 0 con advertencias.
+
 ## Íconos de proyecto (29-oct-2026)
 
 - Búsqueda por calidad, no por carpeta: un `apple-touch-icon.png` (180 px) en cualquier carpeta del proyecto gana a un `favicon.ico` (16–48 px) en la primera. Si no hay nada, se mira un nivel más abajo con las carpetas de interfaz primero (`front`, `web`, `app`…), sin `node_modules`, `dist`, etc.

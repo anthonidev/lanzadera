@@ -18,7 +18,7 @@ Lanzador de proyectos en Ghostty para macOS 27 (reemplazo de las *Launch Configu
 - `Packages/LanzaderaKit`:
   - `LanzaderaCore`: dominio puro. `Project` (resuelto) y `ProjectSpec` (tal como está escrito), `ProjectResolver` (validación por proyecto), `ProjectSummary`, `ProjectFilter`, `GhosttyScript` (**único lugar que escribe AppleScript**), `GhosttySnapshot`, `OpenProjectMatcher` (registro + huella), `ProjectIconFinder` (favicon por calidad), `WarpImporter`. Sin AppKit ni Yams.
   - `LanzaderaConfig`: `ConfigLoader` (nodos de Yams → `ProjectSpec` con líneas), `ConfigWriter` (agrega al final sin perder comentarios), `WarpConfigReader`, `ConfigLocation` (`~/.config/lanzadera/proyectos.yaml`, copia `.bak`).
-  - `LanzaderaSystem`: `AppleScriptRunner` (`NSAppleScript`), `GhosttyController`, `AutomationPermission`, `ConfigFileWatcher`, `WindowRegistry`, `ProjectIconLoader` (decodifica fuera del hilo principal), atajo, inicio de sesión, abrir en Zed, preferencias. Protocolos `ScriptRunning`, `GhosttyControlling`, `WindowRegistering`, `FolderChecking`.
+  - `LanzaderaSystem`: `OSAScriptRunner` (OSAKit en una cola serie, **fuera del hilo principal**), `GhosttyController`, `AutomationPermission`, `ConfigFileWatcher`, `WindowRegistry`, `ProjectIconLoader` (decodifica fuera del hilo principal), atajo, inicio de sesión, abrir en Zed, preferencias. Protocolos `ScriptRunning`, `GhosttyControlling`, `WindowRegistering`, `FolderChecking`.
   - `LanzaderaUI`: `ProjectStore`, `ProjectLauncher`, panel (`PanelController` + `PanelViewModel` + `PanelView`), importación, Preferencias y Bienvenida.
 - Dependencias: `UI → System → Config → Core`. Core no depende de nadie.
 
@@ -38,5 +38,6 @@ Lanzador de proyectos en Ghostty para macOS 27 (reemplazo de las *Launch Configu
 - El indicador "abierto" no consulta a Ghostty sin permiso concedido: la alerta de Automatización sale al abrir un proyecto, no al mirar la lista.
 - Si se prueba desde Ghostty, no cerrar Ghostty (mata la terminal desde la que se trabaja).
 - Cada Apple Event a Ghostty cuesta ~14 ms: pedir propiedades en bloque (`… of every tab of every window`), nunca en bucles.
-- Nada de AppleScript durante animaciones: `NSAppleScript` bloquea el hilo principal (ver `PanelController.show`).
+- No usar `NSAppleScript`: solo funciona en el hilo principal y lo bloquea. Todo AppleScript pasa por `OSAScriptRunner`.
+- `make lint` es estricto: cualquier advertencia de SwiftLint falla.
 - Firmar siempre con el certificado Apple Development (equipo RS79YL6DLM) para no perder el permiso de Automatización.
